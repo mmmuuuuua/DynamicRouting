@@ -38,8 +38,8 @@ _config_dict = dict(
         ),
     ),
     DATASETS=dict(
-        TRAIN=("cityscapes_fine_sem_seg_train", ),
-        TEST=("cityscapes_fine_sem_seg_val", ),
+        TRAIN=("rock_train", ),
+        TEST=("rock_val", ),
     ),
     SOLVER=dict(
         LR_SCHEDULER=dict(

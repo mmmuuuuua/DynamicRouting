@@ -3,6 +3,7 @@ import copy
 import logging
 import numpy as np
 import torch
+import os
 from dl_lib.utils.file_io import PathManager
 from PIL import Image
 
@@ -83,37 +84,47 @@ class DatasetMapper:
         """
         dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
         # USER: Write your own image loading if it's not from a file
-        image = utils.read_image(dataset_dict["file_name"], format=self.img_format)
-        utils.check_image_size(dataset_dict, image)
 
-        if "annotations" not in dataset_dict:
-            image, transforms = T.apply_transform_gens(
-                ([self.crop_gen] if self.crop_gen else [])
-                + self.tfm_gens
-                + ([self.crop_pad_gen] if self.crop_pad_gen else []),
-                image
-            )
-        else:
-            # Crop around an instance if there are instances in the image.
-            # USER: Remove if you don't use cropping
-            assert self.crop_pad_gen is None, 'CropPad is not available for instances.'
-            if self.crop_gen:
-                crop_tfm = utils.gen_crop_transform_with_instance(
-                    self.crop_gen.get_crop_size(image.shape[:2]),
-                    image.shape[:2],
-                    np.random.choice(dataset_dict["annotations"]),
+        image_shape = [0, 0]
+        image_list = []
+
+        for img in os.listdir(dataset_dict["file_name"]):
+            image = utils.read_image(os.path.join(dataset_dict["file_name"], img), format=self.img_format)
+
+            utils.check_image_size(dataset_dict, image)
+
+            if "annotations" not in dataset_dict:
+                image, transforms = T.apply_transform_gens(
+                    ([self.crop_gen] if self.crop_gen else [])
+                    + self.tfm_gens
+                    + ([self.crop_pad_gen] if self.crop_pad_gen else []),
+                    image
                 )
-                image = crop_tfm.apply_image(image)
-            image, transforms = T.apply_transform_gens(self.tfm_gens, image)
-            if self.crop_gen:
-                transforms = crop_tfm + transforms
+            else:
+                # Crop around an instance if there are instances in the image.
+                # USER: Remove if you don't use cropping
+                assert self.crop_pad_gen is None, 'CropPad is not available for instances.'
+                if self.crop_gen:
+                    crop_tfm = utils.gen_crop_transform_with_instance(
+                        self.crop_gen.get_crop_size(image.shape[:2]),
+                        image.shape[:2],
+                        np.random.choice(dataset_dict["annotations"]),
+                    )
+                    image = crop_tfm.apply_image(image)
+                image, transforms = T.apply_transform_gens(self.tfm_gens, image)
+                if self.crop_gen:
+                    transforms = crop_tfm + transforms
 
-        image_shape = image.shape[:2]  # h, w
+            image_shape = image.shape[:2]  # h, w
+            image = image.transpose(2, 0, 1)
+            image_list.append(image)
 
+        image_list = np.array(image_list)
+        image_list = image_list.reshape((-1, image_list.shape[-2], image_list.shape[-1]))
         # Pytorch's dataloader is efficient on torch.Tensor due to shared-memory,
         # but not efficient on large generic data structures due to the use of pickle & mp.Queue.
         # Therefore it's important to use torch.Tensor.
-        dataset_dict["image"] = torch.as_tensor(image.transpose(2, 0, 1).astype("float32"))
+        dataset_dict["image"] = torch.as_tensor(image_list.astype("float32"))
         # Can use uint8 if it turns out to be slow some day
 
         # USER: Remove if you don't use pre-computed proposals.

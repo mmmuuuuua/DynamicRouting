@@ -21,6 +21,7 @@ from dl_lib.data import MetadataCatalog, DatasetCatalog
 from .register_coco import register_coco_instances
 from .cityscapes import load_cityscapes_instances, load_cityscapes_semantic
 from .pascal_voc import register_pascal_voc
+from .rock import load_rock_semantic
 from .builtin_meta import _get_builtin_metadata
 
 # ==== Predefined datasets and splits for COCO ==========
@@ -124,7 +125,38 @@ def register_all_pascal_voc(root=osp.join(
         MetadataCatalog.get(name).evaluator_type = "pascal_voc"
 
 
+# _RAW_ROCK_SPLITS = {
+#     "rock_sem_seg_train":
+#     ("rock/leftImg8bit/train", "rock/gtFine/train"),
+#     "rock_sem_seg_val":
+#     ("rock/leftImg8bit/val", "rock/gtFine/val"),
+#      "rock_fine_{task}_test":
+#     ("rock/leftImg8bit/test", "rock/gtFine/test"),
+# }
+
+
+def register_all_rock(root=osp.join(
+        osp.split(osp.split(dl_lib.__file__)[0])[0], "datasets")):
+    #for key, (image_dir, gt_dir) in _RAW_ROCK_SPLITS.items():
+    _voc_root = os.path.join(root, BASE_DIR)
+    _cat_dir = os.path.join(_voc_root, 'SegmentationClass')  # each class each color
+    _image_dir = os.path.join(_voc_root, 'JPEGImages')
+    _splits_dir = os.path.join(_voc_root, 'ImageSets', 'Segmentation')
+    key = "rock_{task}"
+
+    for _splits_file in os.listdir(_splits_dir):
+        _format_key = key.format(task=os.path.splitext(_splits_file)[0])
+        DatasetCatalog.register(
+            _format_key,
+            lambda x=_image_dir, y=_cat_dir, z=os.path.join(_splits_dir, _splits_file): load_rock_semantic(x, y, z))
+        MetadataCatalog.get(_format_key).set(image_dir=_image_dir,
+                                         gt_dir=_cat_dir,
+                                         evaluator_type="sem_seg",
+                                         )
+
+
 # Register them all under "./datasets"
 register_all_coco()
 register_all_cityscapes()
 register_all_pascal_voc()
+register_all_rock()
